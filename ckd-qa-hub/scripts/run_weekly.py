@@ -24,7 +24,7 @@ def main():
     from app.collectors.fda_483 import collect as collect_483
     from app.collectors.mfds_notices import collect as collect_mfds
 
-    wl_count = collect_wl(max_pages=3)
+    wl_count = collect_wl(max_items=50)
     f483_count = collect_483(max_pages=3)
     mfds_count = collect_mfds(max_pages=2)
     logger.info(f"수집 완료 — WL:{wl_count}, 483:{f483_count}, MFDS:{mfds_count}")
