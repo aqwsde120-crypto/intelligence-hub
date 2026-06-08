@@ -57,7 +57,7 @@ def collect(max_pages: int = 2) -> int:
             logger.error(f"MFDS 목록 요청 실패 (page={page}): {e}")
             break
 
-        soup = BeautifulSoup(r.text, "lxml")
+        soup = BeautifulSoup(r.text, "html.parser")
         rows = soup.select("table tbody tr")
         if not rows:
             break
