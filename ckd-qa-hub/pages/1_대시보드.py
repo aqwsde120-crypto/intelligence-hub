@@ -97,3 +97,28 @@ if st.button("FDA / MFDS 데이터 수집 실행"):
 
         except Exception as e:
             st.error(f"수집 실패: {e}")
+
+if st.button("데이터 수집 + AI 분석 실행"):
+    with st.spinner("수집 및 AI 분석 중..."):
+
+        from app.collectors.fda_warning_letters import collect as collect_wl
+        from app.collectors.fda_483 import collect as collect_483
+        from app.collectors.mfds_notices import collect as collect_mfds
+        from app.ai.gemini_analyzer import run_all_analyses
+
+        wl_count = collect_wl(max_pages=3)
+        f483_count = collect_483(max_pages=3)
+        mfds_count = collect_mfds(max_pages=2)
+
+        analyzed = run_all_analyses()
+
+        st.success(
+            f"""
+수집 완료
+
+- Warning Letter: {wl_count}건
+- FDA 483: {f483_count}건
+- MFDS: {mfds_count}건
+- AI 분석: {analyzed}건
+            """
+        )
