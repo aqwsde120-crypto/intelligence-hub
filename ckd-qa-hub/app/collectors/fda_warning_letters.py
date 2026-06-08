@@ -38,7 +38,7 @@ def _fetch_letter_content(url: str) -> str:
     try:
         r = requests.get(url, headers=HEADERS, timeout=20)
         r.raise_for_status()
-        soup = BeautifulSoup(r.text, "lxml")
+        soup = BeautifulSoup(r.text, "html.parser")
         main = soup.find("div", {"class": "lcds-text-field"}) or soup.find("main")
         return main.get_text(separator="\n", strip=True)[:8000] if main else ""
     except Exception as e:
