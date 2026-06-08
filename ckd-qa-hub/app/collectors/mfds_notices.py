@@ -35,7 +35,7 @@ def _fetch_notice_content(url: str) -> str:
         r = requests.get(url, headers=HEADERS, timeout=20)
         r.raise_for_status()
         r.encoding = "utf-8"
-        soup = BeautifulSoup(r.text, "lxml")
+        soup = BeautifulSoup(r.text, "html.parser")
         body = soup.find("div", {"class": "board_view"}) or soup.find("td", {"class": "bdcont"})
         return body.get_text(separator="\n", strip=True)[:8000] if body else ""
     except Exception as e:
