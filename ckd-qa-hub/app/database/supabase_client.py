@@ -1,11 +1,9 @@
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
-
 load_dotenv()
 
 _client: Client | None = None
-
 
 def get_client() -> Client:
     global _client
@@ -20,7 +18,7 @@ def fetch_warning_letters(limit: int = 100, offset: int = 0) -> list[dict]:
     db = get_client()
     res = (
         db.table("warning_letters")
-        .select("*, ai_analyses(*)")
+        .select("*")                    # ← ai_analyses(*) 제거
         .order("issued_date", desc=True)
         .range(offset, offset + limit - 1)
         .execute()
@@ -32,7 +30,7 @@ def fetch_fda_483(limit: int = 100, offset: int = 0) -> list[dict]:
     db = get_client()
     res = (
         db.table("fda_483")
-        .select("*, ai_analyses(*)")
+        .select("*")                    # ← ai_analyses(*) 제거
         .order("inspection_date", desc=True)
         .range(offset, offset + limit - 1)
         .execute()
@@ -44,7 +42,7 @@ def fetch_mfds_notices(limit: int = 100) -> list[dict]:
     db = get_client()
     res = (
         db.table("mfds_notices")
-        .select("*, ai_analyses(*)")
+        .select("*")                    # ← ai_analyses(*) 제거
         .order("published_date", desc=True)
         .limit(limit)
         .execute()
@@ -52,6 +50,7 @@ def fetch_mfds_notices(limit: int = 100) -> list[dict]:
     return res.data
 
 
+# 나머지 함수들은 그대로 유지
 def fetch_weekly_briefing(week_start: str) -> dict | None:
     db = get_client()
     res = (
@@ -81,7 +80,6 @@ def upsert_weekly_briefing(week_start: str, content: str, actions: str) -> None:
 
 
 def count_new_this_week(table: str, date_col: str) -> int:
-    """이번 주(월요일~오늘) 신규 건수 반환"""
     from datetime import date, timedelta
     today = date.today()
     monday = today - timedelta(days=today.weekday())
