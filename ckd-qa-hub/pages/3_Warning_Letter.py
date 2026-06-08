@@ -15,10 +15,10 @@ def load():
 data = load()
 
 # ── 필터 ─────────────────────────────────────────────────
-with st.expander("🔍 검색 및 필터", expanded=True):
+with st.expander(":material/filter_list: 검색 및 필터", expanded=True):
     fc1, fc2, fc3 = st.columns(3)
     with fc1:
-        query = st.text_input("업체명 / 국가 검색")
+        query = st.text_input("업체명 / 국가 검색", placeholder="예: Pfizer, Korea")
     with fc2:
         risk_filter = st.selectbox("위험도", ["전체", "High", "Medium", "Low"])
     with fc3:
@@ -26,56 +26,73 @@ with st.expander("🔍 검색 및 필터", expanded=True):
 
 # 필터링
 filtered = data
+
 if query:
-    filtered = [d for d in filtered if query.lower() in (d.get("company_name", "") + d.get("country", "")).lower()]
+    filtered = [
+        d for d in filtered 
+        if query.lower() in str(d.get("company_name", "") + " " + d.get("country", "")).lower()
+    ]
+
 if risk_filter != "전체":
     filtered = [
         d for d in filtered
-        if ((d.get("ai_analyses") or [{}])[0] if isinstance(d.get("ai_analyses"), list) else (d.get("ai_analyses") or {})).get("risk_level", "").lower() == risk_filter.lower()
+        if str(d.get("risk_level", "") or d.get("ai_risk_level", "")).lower() == risk_filter.lower()
     ]
+
 if sort_by == "위험도순":
     order = {"high": 0, "medium": 1, "low": 2}
-    filtered.sort(key=lambda x: order.get(((x.get("ai_analyses") or [{}])[0] if isinstance(x.get("ai_analyses"), list) else (x.get("ai_analyses") or {})).get("risk_level", "low").lower(), 3))
+    filtered.sort(
+        key=lambda x: order.get(
+            str(x.get("risk_level", "") or x.get("ai_risk_level", "low")).lower(), 3
+        )
+    )
 
 # ── 내보내기 ─────────────────────────────────────────────
 col_info, col_export = st.columns([3, 1])
 with col_info:
-    st.caption(f"총 {len(filtered)}건")
+    st.caption(f"총 **{len(filtered)}건**")
+
 with col_export:
-    if st.button("📥 Excel 내보내기"):
-        excel_bytes = to_excel(filtered, "Warning_Letters")
-        st.download_button("⬇️ 다운로드", excel_bytes, "warning_letters.xlsx",
-                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    if st.button(":material/download: Excel 내보내기"):
+        with st.spinner("Excel 파일 생성 중..."):
+            excel_bytes = to_excel(filtered, "Warning_Letters")
+            st.download_button(
+                label="⬇️ 다운로드 시작",
+                data=excel_bytes,
+                file_name="warning_letters.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 # ── 목록 ─────────────────────────────────────────────────
-RISK_COLOR = {"High": "🔴", "Medium": "🟡", "Low": "🟢"}
+RISK_COLOR = {"High": "🔴", "Medium": "🟡", "Low": "🟢", "N/A": "⚪"}
 
 for item in filtered:
-    ai = item.get("ai_analyses") or {}
-    if isinstance(ai, list):
-        ai = ai[0] if ai else {}
-
-    risk = ai.get("risk_level", "N/A")
+    risk = str(item.get("risk_level") or item.get("ai_risk_level", "N/A"))
     icon = RISK_COLOR.get(risk, "⚪")
-    header = f"{icon} **{item.get('company_name', 'N/A')}** | {item.get('country', '')} | {item.get('issued_date', '')}"
-
-    with st.expander(header):
-        t1, t2 = st.tabs(["AI 분석", "원문 정보"])
+    
+    header = f"{icon} **{item.get('company_name', 'N/A')}** | {item.get('country', 'N/A')} | {item.get('issued_date', '')}"
+    
+    with st.expander(header, expanded=False):
+        t1, t2 = st.tabs(["🤖 AI 분석", "📄 원문 정보"])
+        
         with t1:
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown(f"**📝 AI 요약**\n\n{ai.get('summary', '분석 데이터 없음')}")
-                st.markdown(f"**🔍 Root Cause**\n\n{ai.get('root_cause', '-')}")
-                st.markdown(f"**📋 GMP 위반 영역**\n\n{ai.get('gmp_area', '-')}")
-                st.markdown(f"**🔧 예상 CAPA**\n\n{ai.get('capa', '-')}")
+                st.markdown(f"**📝 AI 요약**\n\n{item.get('summary', '분석 데이터 없음')}")
+                st.markdown(f"**🔍 Root Cause**\n\n{item.get('root_cause', '-')}")
+                st.markdown(f"**📋 GMP 위반 영역**\n\n{item.get('gmp_area', '-')}")
+                st.markdown(f"**🔧 예상 CAPA**\n\n{item.get('capa', '-')}")
             with col2:
-                st.markdown(f"**💡 Lessons Learned**\n\n{ai.get('lessons_learned', '-')}")
-                st.markdown(f"**🏭 종근당 영향도**\n\n{ai.get('ckd_impact', '-')}")
-                st.markdown(f"**✅ 권장 조치사항**\n\n{ai.get('recommended_action', '-')}")
+                st.markdown(f"**💡 Lessons Learned**\n\n{item.get('lessons_learned', '-')}")
+                st.markdown(f"**🏭 종근당 영향도**\n\n{item.get('ckd_impact', '-')}")
+                st.markdown(f"**✅ 권장 조치사항**\n\n{item.get('recommended_action', '-')}")
+        
         with t2:
-            st.markdown(f"**원문 링크:** [{item.get('source_url', '')}]({item.get('source_url', '')})")
+            url = item.get('source_url', '')
+            if url:
+                st.markdown(f"**원문 링크:** [{url}]({url})")
             if item.get("content"):
-                st.text_area("원문 내용 (일부)", item["content"][:1000], height=200, disabled=True)
+                st.text_area("원문 내용 (일부)", item["content"][:1500], height=250, disabled=True)
 
 st.divider()
 
