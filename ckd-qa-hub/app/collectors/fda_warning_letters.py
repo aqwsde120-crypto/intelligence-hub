@@ -197,3 +197,10 @@ logger.info(
 
 return saved
 ```
+if st.button("FDA Warning Letter 수집"):
+    from app.collectors.fda_warning_letters import collect
+
+    with st.spinner("수집 중..."):
+        count = collect()
+
+    st.success(f"{count}건 저장 완료")
