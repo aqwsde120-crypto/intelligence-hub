@@ -55,7 +55,7 @@ def collect(max_pages: int = 3) -> int:
             logger.error(f"목록 요청 실패 (page={page}): {e}")
             break
 
-        soup = BeautifulSoup(r.text, "lxml")
+        soup = BeautifulSoup(r.text, "html.parser")
         rows = soup.select("table.table tbody tr")
         if not rows:
             break
