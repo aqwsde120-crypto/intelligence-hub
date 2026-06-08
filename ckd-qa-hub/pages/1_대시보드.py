@@ -69,3 +69,31 @@ with c1:
 with c2:
     fig = country_bar(wl_data)
     st.plotly_chart(fig, use_container_width=True)
+st.divider()
+
+st.subheader("🔄 데이터 수집")
+
+if st.button("FDA / MFDS 데이터 수집 실행"):
+    with st.spinner("데이터 수집 중... (1~3분 소요)"):
+
+        try:
+            from app.collectors.fda_warning_letters import collect as collect_wl
+            from app.collectors.fda_483 import collect as collect_483
+            from app.collectors.mfds_notices import collect as collect_mfds
+
+            wl_count = collect_wl(max_pages=3)
+            f483_count = collect_483(max_pages=3)
+            mfds_count = collect_mfds(max_pages=2)
+
+            st.success(
+                f"""
+수집 완료
+
+- Warning Letter: {wl_count}건
+- FDA 483: {f483_count}건
+- MFDS 공지사항: {mfds_count}건
+                """
+            )
+
+        except Exception as e:
+            st.error(f"수집 실패: {e}")
