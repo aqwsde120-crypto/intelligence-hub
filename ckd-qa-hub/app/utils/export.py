@@ -1,25 +1,25 @@
-"""Excel / PDF 내보내기"""
-
 import io
 import pandas as pd
 
+def _get_ai(item: dict, field: str, default=""):
+    ai = item.get("ai_analyses") or {}
+    if isinstance(ai, list) and ai:
+        ai = ai[0]
+    return ai.get(field) if isinstance(ai, dict) else item.get(field, default)
+
 
 def to_excel(data: list[dict], sheet_name: str = "데이터") -> bytes:
-    """데이터를 Excel 바이트로 변환"""
     rows = []
     for item in data:
-        ai = item.get("ai_analyses") or {}
-        if isinstance(ai, list):
-            ai = ai[0] if ai else {}
         row = {
             "업체명": item.get("company_name") or item.get("title", ""),
             "국가": item.get("country", ""),
             "날짜": item.get("issued_date") or item.get("inspection_date") or item.get("published_date", ""),
-            "AI 요약": ai.get("summary", ""),
-            "GMP 영역": ai.get("gmp_area", ""),
-            "위험도": ai.get("risk_level", ""),
-            "종근당 영향도": ai.get("ckd_impact", ""),
-            "권장 조치": ai.get("recommended_action", ""),
+            "AI 요약": _get_ai(item, "summary"),
+            "GMP 영역": _get_ai(item, "gmp_area"),
+            "위험도": _get_ai(item, "risk_level"),
+            "종근당 영향도": _get_ai(item, "ckd_impact"),
+            "권장 조치": _get_ai(item, "recommended_action"),
             "원문 링크": item.get("source_url", ""),
         }
         rows.append(row)
