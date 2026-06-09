@@ -72,6 +72,9 @@ with c2:
 st.divider()
 
 st.subheader("🔄 데이터 수집")
+st.write("Warning Letter 건수:", len(fetch_warning_letters(limit=1000)))
+st.write("FDA 483 건수:", len(fetch_fda_483(limit=1000)))
+st.write("MFDS 건수:", len(fetch_mfds_notices(limit=1000)))
 
 if st.button("FDA / MFDS 데이터 수집 실행"):
     with st.spinner("데이터 수집 중... (1~3분 소요)"):
