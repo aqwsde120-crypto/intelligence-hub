@@ -1,98 +1,85 @@
 import time
 import logging
 import requests
-import pandas as pd
+from bs4 import BeautifulSoup
 from datetime import datetime
 from app.database.supabase_client import get_client
 
 logger = logging.getLogger(__name__)
 
-# 최신 FY Excel 다운로드 링크 (FDA 공식)
-EXCEL_URLS = {
-    "FY2025": "https://www.fda.gov/media/190190/download",
-    "FY2024": "https://www.fda.gov/media/185090/download",
-    "FY2023": "https://www.fda.gov/media/174101/download",
-    "FY2022": "https://www.fda.gov/media/163420/download",
-}
+BASE_URL = "https://www.fda.gov"
+LIST_URL = "https://www.fda.gov/about-fda/office-inspections-and-investigations/oii-foia-electronic-reading-room"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; CKD-QA-Hub/1.0)"
 }
 
 
-def collect() -> int:
-    """FDA 483 Excel 파일에서 데이터 수집"""
+def _fetch_pdf_content(pdf_url: str) -> str:
+    """PDF에서 텍스트 추출 시도 (현재는 링크만 저장, 필요시 pdfplumber 추가 가능)"""
+    return f"PDF 다운로드 링크: {pdf_url}"   # 추후 PDF 파싱 기능 추가 가능
+
+
+def collect(max_pages: int = 1) -> int:   # 이 페이지는 페이지네이션이 별도로 있을 수 있음
     db = get_client()
     saved = 0
 
-    for fy_name, url in EXCEL_URLS.items():
-        logger.info(f"📥 {fy_name} Excel 다운로드 중...")
+    try:
+        r = requests.get(LIST_URL, headers=HEADERS, timeout=40)
+        r.raise_for_status()
+    except Exception as e:
+        logger.error(f"목록 페이지 로드 실패: {e}")
+        return 0
+
+    soup = BeautifulSoup(r.text, "html.parser")
+    rows = soup.select("table tbody tr")
+
+    logger.info(f"483 테이블 행 발견: {len(rows)}개")
+
+    for row in rows:
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=60)
-            resp.raise_for_status()
+            cols = row.find_all("td")
+            if len(cols) < 4:
+                continue
 
-            # Excel 읽기
-            df = pd.read_excel(resp.content, engine="openpyxl")
-            logger.info(f"{fy_name} 로드 완료: {len(df)} rows, 컬럼: {list(df.columns)}")
+            # 날짜
+            record_date = cols[0].get_text(strip=True)
+            
+            # 회사명
+            company = cols[1].get_text(strip=True)
+            
+            # 483 링크
+            link_tag = cols[3].find("a")
+            if not link_tag:
+                continue
+                
+            pdf_href = link_tag.get("href")
+            if pdf_href.startswith("/"):
+                pdf_url = BASE_URL + pdf_href
+            else:
+                pdf_url = pdf_href
 
-            for _, row in df.iterrows():
-                try:
-                    # 회사명 찾기 (컬럼명 변동 가능성 대응)
-                    company = None
-                    for col in ["Firm Name", "Company Name", "Name", "firm_name"]:
-                        if col in df.columns and pd.notna(row[col]):
-                            company = str(row[col]).strip()
-                            break
-                    if not company or len(company) < 3:
-                        continue
+            # 중복 체크
+            existing = db.table("fda_483").select("id").eq("source_url", pdf_url).execute()
+            if existing.data:
+                continue
 
-                    # 검사 날짜
-                    inspection_date = datetime.now().date().isoformat()
-                    for col in ["Inspection Date", "Date", "inspection_date", "Date of Inspection"]:
-                        if col in df.columns and pd.notna(row[col]):
-                            try:
-                                inspection_date = pd.to_datetime(row[col]).date().isoformat()
-                                break
-                            except:
-                                continue
+            content = _fetch_pdf_content(pdf_url)
 
-                    source_url = ""
+            db.table("fda_483").insert({
+                "company_name": company,
+                "inspection_date": record_date,   # 실제 검사일은 PDF 안에 있음
+                "source_url": pdf_url,
+                "content": content,
+            }).execute()
 
-                    # 중복 체크
-                    existing = (
-                        db.table("fda_483")
-                        .select("id")
-                        .eq("company_name", company)
-                        .eq("inspection_date", inspection_date)
-                        .execute()
-                    )
-                    if existing.data:
-                        continue
-
-                    # content 생성
-                    content_parts = [f"Fiscal Year: {fy_name}"]
-                    for col in df.columns[:15]:  # 주요 컬럼만
-                        if pd.notna(row[col]):
-                            content_parts.append(f"{col}: {row[col]}")
-
-                    content = "\n".join(content_parts)
-
-                    db.table("fda_483").insert({
-                        "company_name": company,
-                        "inspection_date": inspection_date,
-                        "source_url": source_url,
-                        "content": content[:8000],
-                    }).execute()
-
-                    saved += 1
-                    logger.info(f"✅ 저장: {company}")
-                    time.sleep(0.4)
-
-                except Exception as inner_e:
-                    continue
+            saved += 1
+            logger.info(f"✅ 저장 완료: {company}")
+            time.sleep(1.0)
 
         except Exception as e:
-            logger.error(f"{fy_name} 처리 실패: {e}")
+            logger.warning(f"행 처리 중 오류: {e}")
+            continue
 
-    logger.info(f"🎉 FDA 483 수집 완료 — 총 {saved}건 신규 저장")
+    logger.info(f"FDA 483 수집 완료 — {saved}건 신규 저장")
     return saved
