@@ -285,13 +285,9 @@ st.divider()
 # 데이터 수집
 # ==================================================
 
-st.subheader(
-    "🔄 데이터 수집"
-)
+st.subheader("🔄 데이터 수집")
 
-if st.button(
-    "FDA / MFDS 데이터 수집 실행"
-):
+if st.button("FDA / MFDS 데이터 수집 실행"):
 
     try:
 
@@ -299,32 +295,30 @@ if st.button(
         from app.collectors.fda_483 import collect as collect_483
         from app.collectors.mfds_notices import collect as collect_mfds
 
-        with st.spinner(
-            "데이터 수집 중..."
-        ):
+        with st.spinner("데이터 수집 중..."):
 
-            wl_count = collect_wl(
-                max_items=50
+            st.write("===== Warning Letter 수집 시작 =====")
+
+            wl_count = collect_wl(max_items=50)
+
+            st.success(
+                f"Warning Letter 수집 결과 : {wl_count}"
             )
 
-            st.write(
-                f"Warning Letter 결과: {wl_count}"
+            st.write("===== FDA 483 수집 시작 =====")
+
+            f483_count = collect_483(max_pages=3)
+
+            st.success(
+                f"FDA 483 수집 결과 : {f483_count}"
             )
 
-            f483_count = collect_483(
-                max_pages=3
-            )
+            st.write("===== MFDS 수집 시작 =====")
 
-            st.write(
-                f"FDA 483 결과: {f483_count}"
-            )
+            mfds_count = collect_mfds(max_pages=2)
 
-            mfds_count = collect_mfds(
-                max_pages=2
-            )
-
-            st.write(
-                f"MFDS 결과: {mfds_count}"
+            st.success(
+                f"MFDS 수집 결과 : {mfds_count}"
             )
 
         st.success(
@@ -342,10 +336,7 @@ MFDS : {mfds_count}
         import traceback
 
         st.error(str(e))
-
-        st.code(
-            traceback.format_exc()
-        )
+        st.code(traceback.format_exc())
 
 # ==================================================
 # AI 분석
