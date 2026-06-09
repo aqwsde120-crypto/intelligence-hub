@@ -2,7 +2,6 @@ import time
 import logging
 from datetime import datetime
 
-import feedparser
 import requests
 from bs4 import BeautifulSoup
 
@@ -10,31 +9,34 @@ from app.database.supabase_client import get_client
 
 logger = logging.getLogger(__name__)
 
-RSS_URL = "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/warning-letters/rss.xml"
+BASE_URL = "https://www.fda.gov"
+
+LIST_URL = (
+    "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/"
+    "compliance-actions-and-activities/warning-letters"
+)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; CKD-QA-Hub/1.0)"
+    "User-Agent": "Mozilla/5.0"
 }
 
 
-def _fetch_letter_content(url: str) -> str:
+def _fetch_letter_content(url):
+
     try:
+
         r = requests.get(
             url,
             headers=HEADERS,
             timeout=30,
         )
-        r.raise_for_status()
 
         soup = BeautifulSoup(
             r.text,
             "html.parser"
         )
 
-        main = (
-            soup.find("main")
-            or soup.find("div", class_="lcds-text-field")
-        )
+        main = soup.find("main")
 
         if not main:
             return ""
@@ -45,52 +47,74 @@ def _fetch_letter_content(url: str) -> str:
         )[:10000]
 
     except Exception as e:
+
         logger.warning(
-            f"본문 수집 실패: {url} / {e}"
+            f"본문 수집 실패: {e}"
         )
+
         return ""
 
 
-def collect(max_items: int = 50) -> int:
+def collect(max_items=50):
 
     db = get_client()
 
-    feed = feedparser.parse(RSS_URL)
-
-    if not feed.entries:
-        logger.warning("FDA RSS 데이터 없음")
-        return 0
-
     saved = 0
 
-    for entry in feed.entries[:max_items]:
+    r = requests.get(
+        LIST_URL,
+        headers=HEADERS,
+        timeout=30,
+    )
 
-        source_url = entry.link
+    soup = BeautifulSoup(
+        r.text,
+        "html.parser"
+    )
+
+    links = soup.find_all("a")
+
+    warning_links = []
+
+    for a in links:
+
+        href = a.get("href")
+
+        if not href:
+            continue
+
+        if "/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/" in href:
+
+            if href.startswith("/"):
+
+                href = BASE_URL + href
+
+            warning_links.append(
+                (
+                    a.get_text(strip=True),
+                    href
+                )
+            )
+
+    logger.info(
+        f"Warning Letter 발견: {len(warning_links)}건"
+    )
+
+    for title, href in warning_links[:max_items]:
 
         existing = (
             db.table("warning_letters")
             .select("id")
-            .eq("source_url", source_url)
+            .eq("source_url", href)
             .execute()
         )
 
         if existing.data:
             continue
 
-        title = entry.title
-
-        issued_date = None
-
-        try:
-            issued_date = (
-                datetime(*entry.published_parsed[:6])
-                .date()
-                .isoformat()
-            )
-        except Exception:
-            pass
-
-        content = _fetch_letter_content(source_url)
+        content = _fetch_letter_content(
+            href
+        )
 
         try:
 
@@ -98,8 +122,8 @@ def collect(max_items: int = 50) -> int:
                 {
                     "company_name": title,
                     "country": None,
-                    "issued_date": issued_date,
-                    "source_url": source_url,
+                    "issued_date": datetime.now().date().isoformat(),
+                    "source_url": href,
                     "content": content,
                 }
             ).execute()
