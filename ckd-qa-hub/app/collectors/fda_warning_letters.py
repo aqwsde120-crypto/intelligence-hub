@@ -24,12 +24,13 @@ HEADERS = {
 def _fetch_letter_content(url):
 
     try:
-
         r = requests.get(
             url,
             headers=HEADERS,
             timeout=30,
         )
+
+        r.raise_for_status()
 
         soup = BeautifulSoup(
             r.text,
@@ -61,11 +62,23 @@ def collect(max_items=50):
 
     saved = 0
 
-    r = requests.get(
-        LIST_URL,
-        headers=HEADERS,
-        timeout=30,
-    )
+    try:
+
+        r = requests.get(
+            LIST_URL,
+            headers=HEADERS,
+            timeout=30,
+        )
+
+        r.raise_for_status()
+
+    except Exception as e:
+
+        logger.error(
+            f"목록 수집 실패: {e}"
+        )
+
+        return 0
 
     soup = BeautifulSoup(
         r.text,
@@ -83,18 +96,20 @@ def collect(max_items=50):
         if not href:
             continue
 
-        if "/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/" in href:
+        if "/warning-letters/" not in href:
+            continue
 
-            if href.startswith("/"):
+        if href.startswith("/"):
+            href = BASE_URL + href
 
-                href = BASE_URL + href
+        title = a.get_text(strip=True)
 
-            warning_links.append(
-                (
-                    a.get_text(strip=True),
-                    href
-                )
-            )
+        if not title:
+            continue
+
+        warning_links.append(
+            (title, href)
+        )
 
     logger.info(
         f"Warning Letter 발견: {len(warning_links)}건"
@@ -102,23 +117,25 @@ def collect(max_items=50):
 
     for title, href in warning_links[:max_items]:
 
-        existing = (
-            db.table("warning_letters")
-            .select("id")
-            .eq("source_url", href)
-            .execute()
-        )
-
-        if existing.data:
-            continue
-
-        content = _fetch_letter_content(
-            href
-        )
-
         try:
 
-            db.table("warning_letters").insert(
+            existing = (
+                db.table("warning_letters")
+                .select("id")
+                .eq("source_url", href)
+                .execute()
+            )
+
+            if existing.data:
+                continue
+
+            content = _fetch_letter_content(
+                href
+            )
+
+            db.table(
+                "warning_letters"
+            ).insert(
                 {
                     "company_name": title,
                     "country": None,
@@ -147,39 +164,3 @@ def collect(max_items=50):
     )
 
     return saved
-    
-table = soup.find("table")
-
-if not table:
-    logger.error("Warning Letter 테이블 없음")
-    return 0
-
-rows = table.find_all("tr")
-
-logger.info(f"행 개수: {len(rows)}")
-
-for row in rows[1:]:
-
-    cols = row.find_all("td")
-
-    if len(cols) < 2:
-        continue
-
-    link = cols[0].find("a")
-
-    if not link:
-        continue
-
-    title = link.get_text(strip=True)
-
-    href = link.get("href")
-
-    if href.startswith("/"):
-        href = BASE_URL + href
-
-    warning_links.append(
-        (
-            title,
-            href
-        )
-    )
