@@ -13,6 +13,8 @@ def load():
 
 data = load()
 
+st.caption(f"총 **{len(data)}건** 데이터 로드됨")
+
 # ── 필터 ─────────────────────────────────────────────────
 with st.expander(":material/filter_list: 검색 및 필터", expanded=True):
     fc1, fc2 = st.columns(2)
@@ -39,7 +41,7 @@ if risk_filter != "전체":
 # ── 내보내기 ─────────────────────────────────────────────
 col_info, col_export = st.columns([3, 1])
 with col_info:
-    st.caption(f"총 **{len(filtered)}건**")
+    st.caption(f"필터 적용 후 **{len(filtered)}건**")
 
 with col_export:
     if st.button(":material/download: Excel 내보내기"):
@@ -56,17 +58,18 @@ with col_export:
 RISK_COLOR = {"High": "🔴", "Medium": "🟡", "Low": "🟢", "N/A": "⚪"}
 
 for item in filtered:
+    # AI 분석 데이터 안전하게 가져오기
     risk = str(item.get("risk_level") or item.get("ai_risk_level", "N/A"))
     icon = RISK_COLOR.get(risk, "⚪")
     
-    repeated = " 🔁 반복 지적" if "반복" in str(item.get("root_cause") or "").lower() else ""
+    repeated = " 🔁 반복 지적" if "반복" in str(item.get("root_cause") or item.get("summary", "")).lower() else ""
     
     header = f"{icon} **{item.get('company_name', 'N/A')}** | {item.get('inspection_date', '')}{repeated}"
     
     with st.expander(header, expanded=False):
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(f"**📝 주요 Observation 요약**\n\n{item.get('summary', '-')}")
+            st.markdown(f"**📝 주요 Observation 요약**\n\n{item.get('summary', item.get('content', '분석 데이터 없음')[:500])}")
             st.markdown(f"**📋 GMP 카테고리**\n\n{item.get('gmp_area', '-')}")
             st.markdown(f"**🔄 반복 지적 여부**\n\n{item.get('root_cause', '-')}")
         with col2:
