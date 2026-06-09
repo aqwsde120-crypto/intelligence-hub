@@ -13,13 +13,13 @@ def load():
 
 data = load()
 
-st.caption(f"총 **{len(data)}건** 데이터 로드됨")
+st.caption(f"**총 {len(data)}건**의 FDA 483 데이터가 로드되었습니다.")
 
 # ── 필터 ─────────────────────────────────────────────────
 with st.expander(":material/filter_list: 검색 및 필터", expanded=True):
     fc1, fc2 = st.columns(2)
     with fc1:
-        query = st.text_input("업체명 검색", placeholder="예: Pfizer")
+        query = st.text_input("업체명 검색", placeholder="예: Pfizer, Medtronic")
     with fc2:
         risk_filter = st.selectbox("위험도", ["전체", "High", "Medium", "Low"])
 
@@ -44,11 +44,11 @@ with col_info:
     st.caption(f"필터 적용 후 **{len(filtered)}건**")
 
 with col_export:
-    if st.button(":material/download: Excel 내보내기"):
+    if st.button(":material/download: Excel 내보내기", use_container_width=False):
         with st.spinner("Excel 파일 생성 중..."):
             excel_bytes = to_excel(filtered, "FDA_483")
             st.download_button(
-                label="⬇️ 다운로드 시작",
+                label="⬇️ 다운로드",
                 data=excel_bytes,
                 file_name="fda_483.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -58,7 +58,6 @@ with col_export:
 RISK_COLOR = {"High": "🔴", "Medium": "🟡", "Low": "🟢", "N/A": "⚪"}
 
 for item in filtered:
-    # AI 분석 데이터 안전하게 가져오기
     risk = str(item.get("risk_level") or item.get("ai_risk_level", "N/A"))
     icon = RISK_COLOR.get(risk, "⚪")
     
@@ -69,7 +68,8 @@ for item in filtered:
     with st.expander(header, expanded=False):
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(f"**📝 주요 Observation 요약**\n\n{item.get('summary', item.get('content', '분석 데이터 없음')[:500])}")
+            summary = item.get('summary') or item.get('content', '')[:500] or '분석 데이터 없음'
+            st.markdown(f"**📝 주요 Observation 요약**\n\n{summary}")
             st.markdown(f"**📋 GMP 카테고리**\n\n{item.get('gmp_area', '-')}")
             st.markdown(f"**🔄 반복 지적 여부**\n\n{item.get('root_cause', '-')}")
         with col2:
@@ -77,9 +77,8 @@ for item in filtered:
             st.markdown(f"**🏭 종근당 영향도**\n\n{item.get('ckd_impact', '-')}")
             st.markdown(f"**✅ 권장 조치사항**\n\n{item.get('recommended_action', '-')}")
         
-        url = item.get('source_url', '')
-        if url:
-            st.markdown(f"[📄 원문 보기]({url})")
+        if item.get('source_url'):
+            st.markdown(f"[📄 원문 보기]({item['source_url']})")
 
 st.divider()
 
