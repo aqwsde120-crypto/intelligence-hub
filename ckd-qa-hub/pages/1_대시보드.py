@@ -84,9 +84,23 @@ if st.button("FDA / MFDS 데이터 수집 실행"):
             from app.collectors.fda_483 import collect as collect_483
             from app.collectors.mfds_notices import collect as collect_mfds
 
+            st.write("Warning Letter 수집 시작")
+            
             wl_count = collect_wl(max_pages=3)
+            
+            st.write("Warning Letter 결과:", wl_count)
+            
+            st.write("FDA483 수집 시작")
+
             f483_count = collect_483(max_pages=3)
+
+            st.write("FDA483 결과:", f483_count)
+            
+            st.write("MFDS 수집 시작")
+
             mfds_count = collect_mfds(max_pages=2)
+
+            st.write("MFDS 결과:", mfds_count)
 
             st.success(
                 f"""
