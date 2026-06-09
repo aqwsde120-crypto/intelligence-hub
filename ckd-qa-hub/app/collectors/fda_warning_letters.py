@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 
 from app.database.supabase_client import get_client
 
-logger = logging.getLogger(**name**)
+logger = logging.getLogger(__name__)
 
 RSS_URL = "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/warning-letters/rss.xml"
 
