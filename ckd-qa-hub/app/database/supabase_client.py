@@ -18,7 +18,6 @@ def get_client() -> Client:
 
 
 def fetch_warning_letters(limit: int = 100, offset: int = 0) -> list[dict]:
-    """신규 Warning Letter 조회"""
     db = get_client()
     res = (
         db.table("warning_letters")
