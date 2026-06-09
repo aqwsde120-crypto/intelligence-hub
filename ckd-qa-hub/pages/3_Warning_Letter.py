@@ -10,7 +10,7 @@ st.title("⚠️ Warning Letter 분석")
 # ── 데이터 로드 ───────────────────────────────────────────
 @st.cache_data(ttl=300)
 def load():
-    return fetch_warning_letters(limit=200)
+    return fetch_warning_letters(limit=200)   # Warning Letter 전용 함수 사용
 
 data = load()
 
@@ -25,7 +25,7 @@ with st.expander(":material/filter_list: 검색 및 필터", expanded=True):
         sort_by = st.selectbox("정렬", ["최신순", "위험도순"])
 
 # 필터링
-filtered = data
+filtered = [d for d in data if d.get("source_url", "").find("warning-letters") != -1 or True]
 
 if query:
     filtered = [
