@@ -1,8 +1,3 @@
-"""
-MFDS(식품의약품안전처) GMP 관련 공지사항 수집기
-출처: https://www.mfds.go.kr/brd/m_99/list.do (GMP 공지)
-"""
-
 import time
 import logging
 from datetime import datetime
@@ -20,35 +15,53 @@ HEADERS = {
 }
 
 
-def _parse_date(text: str) -> str | None:
+def _parse_date(text: str) -> str:
+    """날짜 파싱"""
     text = text.strip()
-    for fmt in ("%Y-%m-%d", "%Y.%m.%d", "%Y/%m/%d"):
+    for fmt in ("%Y-%m-%d", "%Y.%m.%d", "%Y/%m/%d", "%Y-%m-%d %H:%M:%S"):
         try:
             return datetime.strptime(text, fmt).date().isoformat()
         except ValueError:
             continue
-    return None
+    return datetime.now().date().isoformat()
 
 
 def _fetch_notice_content(url: str) -> str:
+    """공지사항 본문 수집"""
     try:
-        r = requests.get(url, headers=HEADERS, timeout=20)
+        r = requests.get(url, headers=HEADERS, timeout=25)
         r.raise_for_status()
         r.encoding = "utf-8"
         soup = BeautifulSoup(r.text, "html.parser")
-        body = soup.find("div", {"class": "board_view"}) or soup.find("td", {"class": "bdcont"})
-        return body.get_text(separator="\n", strip=True)[:8000] if body else ""
+        
+        # 본문 영역 찾기 (MFDS 페이지 구조에 맞게)
+        body = (
+            soup.find("div", {"class": "board_view"}) or 
+            soup.find("td", {"class": "bdcont"}) or 
+            soup.find("div", class_=lambda x: x and "view" in x.lower())
+        )
+        
+        if not body:
+            return ""
+        
+        return body.get_text(separator="\n", strip=True)[:8000]
     except Exception as e:
         logger.warning(f"MFDS 본문 수집 실패 {url}: {e}")
         return ""
 
 
-def collect(max_pages: int = 2) -> int:
+def collect(max_pages: int = 3) -> int:
+    """MFDS GMP 관련 공지사항 수집"""
     db = get_client()
     saved = 0
 
     for page in range(1, max_pages + 1):
-        params = {"pageNo": page, "numOfRows": 20}
+        params = {
+            "pageNo": page,
+            "numOfRows": 20,
+            "srchWord": ""  # 필요시 검색어 추가 가능
+        }
+        
         try:
             r = requests.get(LIST_URL, headers=HEADERS, params=params, timeout=30)
             r.raise_for_status()
@@ -59,7 +72,9 @@ def collect(max_pages: int = 2) -> int:
 
         soup = BeautifulSoup(r.text, "html.parser")
         rows = soup.select("table tbody tr")
+
         if not rows:
+            logger.info("더 이상 데이터가 없습니다.")
             break
 
         for row in rows:
@@ -73,31 +88,35 @@ def collect(max_pages: int = 2) -> int:
 
             title = link_tag.get_text(strip=True)
             href = link_tag.get("href", "")
+            if not href:
+                continue
             if not href.startswith("http"):
                 href = BASE_URL + href
 
-            date_text = cols[-1].get_text(strip=True) if cols else None
-            published_date = _parse_date(date_text) if date_text else None
+            # 날짜는 보통 마지막 컬럼
+            date_text = cols[-1].get_text(strip=True) if len(cols) > 0 else ""
+            published_date = _parse_date(date_text)
 
-            existing = (
-                db.table("mfds_notices")
-                .select("id")
-                .eq("source_url", href)
-                .execute()
-            )
+            # 중복 체크
+            existing = db.table("mfds_notices").select("id").eq("source_url", href).execute()
             if existing.data:
                 continue
 
             content = _fetch_notice_content(href)
-            db.table("mfds_notices").insert({
-                "title": title,
-                "published_date": published_date,
-                "source_url": href,
-                "content": content,
-            }).execute()
-            saved += 1
-            logger.info(f"MFDS 저장: {title}")
-            time.sleep(1.0)
 
-    logger.info(f"MFDS 수집 완료: {saved}건 신규 저장")
+            try:
+                db.table("mfds_notices").insert({
+                    "title": title,
+                    "published_date": published_date,
+                    "source_url": href,
+                    "content": content or "",
+                }).execute()
+
+                saved += 1
+                logger.info(f"✅ MFDS 저장: {title[:80]}...")
+                time.sleep(1.1)
+            except Exception as e:
+                logger.error(f"❌ MFDS DB 저장 실패: {title[:60]}... {e}")
+
+    logger.info(f"MFDS 수집 완료 — 신규 {saved}건 저장")
     return saved
