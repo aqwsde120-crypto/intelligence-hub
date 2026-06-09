@@ -147,3 +147,39 @@ def collect(max_items=50):
     )
 
     return saved
+    
+table = soup.find("table")
+
+if not table:
+    logger.error("Warning Letter 테이블 없음")
+    return 0
+
+rows = table.find_all("tr")
+
+logger.info(f"행 개수: {len(rows)}")
+
+for row in rows[1:]:
+
+    cols = row.find_all("td")
+
+    if len(cols) < 2:
+        continue
+
+    link = cols[0].find("a")
+
+    if not link:
+        continue
+
+    title = link.get_text(strip=True)
+
+    href = link.get("href")
+
+    if href.startswith("/"):
+        href = BASE_URL + href
+
+    warning_links.append(
+        (
+            title,
+            href
+        )
+    )
